@@ -1,26 +1,27 @@
 package net.sourceforge.opencamera;
 
-import net.sourceforge.opencamera.CameraController.CameraController;
-import net.sourceforge.opencamera.CameraController.CameraControllerManager2;
-import net.sourceforge.opencamera.Preview.Preview;
-import net.sourceforge.opencamera.Preview.VideoProfile;
-import net.sourceforge.opencamera.UI.FolderChooserDialog;
-import net.sourceforge.opencamera.UI.MainUI;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
 import android.Manifest;
+import android.animation.ArgbEvaluator;
+import android.animation.ValueAnimator;
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.AlertDialog;
+import android.app.KeyguardManager;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnDismissListener;
+import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -43,24 +44,6 @@ import android.os.ParcelFileDescriptor;
 import android.os.StatFs;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
-import android.animation.ArgbEvaluator;
-import android.animation.ValueAnimator;
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.AlertDialog;
-import android.app.KeyguardManager;
-import android.content.ActivityNotFoundException;
-import android.content.ContentResolver;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.DialogInterface.OnDismissListener;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
-import android.content.pm.PackageManager;
-import android.content.res.Configuration;
 import android.renderscript.RenderScript;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
@@ -85,6 +68,22 @@ import android.widget.ImageButton;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.ZoomControls;
+import net.sourceforge.opencamera.CameraController.CameraController;
+import net.sourceforge.opencamera.CameraController.CameraControllerManager2;
+import net.sourceforge.opencamera.Preview.Preview;
+import net.sourceforge.opencamera.Preview.VideoProfile;
+import net.sourceforge.opencamera.UI.FolderChooserDialog;
+import net.sourceforge.opencamera.UI.MainUI;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /** The main Activity for Open Camera.
  */
@@ -93,6 +92,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	private SensorManager mSensorManager;
 	private Sensor mSensorAccelerometer;
 	private Sensor mSensorMagnetic;
+	private Sensor mSensorGravity, mSensorRotationVec; //OpenCameraAR addition
 	private MainUI mainUI;
 	private TextFormatter textFormatter;
 	private MyApplicationInterface applicationInterface;
@@ -113,15 +113,15 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 
     private SoundPool sound_pool;
 	private SparseIntArray sound_ids;
-	
+
 	private TextToSpeech textToSpeech;
 	private boolean textToSpeechSuccess;
-	
+
 	private AudioListener audio_listener;
 	private int audio_noise_sensitivity = -1;
 	private SpeechRecognizer speechRecognizer;
 	private boolean speechRecognizerIsStarted;
-	
+
 	//private boolean ui_placement_right = true;
 
 	private final ToastBoxer switch_video_toast = new ToastBoxer();
@@ -150,7 +150,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public volatile boolean test_have_angle;
 	public volatile float test_angle;
 	public volatile String test_last_saved_image;
-	
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		long debug_time = 0;
@@ -273,6 +273,30 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         preview = new Preview(applicationInterface, ((ViewGroup) this.findViewById(R.id.preview)));
 		if( MyDebug.LOG )
 			Log.d(TAG, "onCreate: time after creating preview: " + (System.currentTimeMillis() - debug_time));
+
+		//OpenCameraAR addition
+		if( mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY) != null ) {
+			if( MyDebug.LOG )
+				Log.d(TAG, "found gravity sensor");
+			mSensorGravity = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+			preview.has_android_gravity = true;
+		}
+		else {
+			if( MyDebug.LOG )
+				Log.d(TAG, "no support for gravity sensor");
+		}
+
+		//OpenCameraAR addition
+		if( mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null ) {
+			if( MyDebug.LOG )
+				Log.d(TAG, "found rotation vector sensor");
+			mSensorRotationVec = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+			preview.has_rotation_vector = true;
+		}
+		else {
+			if( MyDebug.LOG )
+				Log.d(TAG, "no support for rotation vector sensor");
+		}
 
 		// initialise on-screen button visibility
 	    View switchCameraButton = findViewById(R.id.switch_camera);
@@ -455,7 +479,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         				if( MyDebug.LOG )
         					Log.d(TAG, "TextToSpeech initialised");
         				if( status == TextToSpeech.SUCCESS ) {
-        					textToSpeechSuccess = true;					
+        					textToSpeechSuccess = true;
         					if( MyDebug.LOG )
         						Log.d(TAG, "TextToSpeech succeeded");
         				}
@@ -652,7 +676,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		if( MyDebug.LOG )
 			Log.d(TAG, "supports_camera2? " + supports_camera2);
 	}
-	
+
 	private void preloadIcons(int icons_id) {
 		long debug_time = 0;
 		if( MyDebug.LOG ) {
@@ -672,7 +696,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "size of preloaded_bitmap_resources: " + preloaded_bitmap_resources.size());
 		}
 	}
-	
+
 	@Override
 	protected void onDestroy() {
 		if( MyDebug.LOG ) {
@@ -715,14 +739,14 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		if( MyDebug.LOG )
 			Log.d(TAG, "onDestroy done");
 	}
-	
+
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
 	}
-	
+
 	private void setFirstTimeFlag() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "setFirstTimeFlag");
@@ -759,7 +783,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			return;
 		}
 		int diff = level - last_level;
-		
+
 		if( MyDebug.LOG )
 			Log.d(TAG, "noise_sensitivity: " + audio_noise_sensitivity);
 
@@ -820,7 +844,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			}
 		}
 	}
-	
+
 	/* Audio trigger - either loud sound, or speech recognition.
 	 * This performs some additional checks before taking a photo.
 	 */
@@ -856,7 +880,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			});
 		}
 	}
-	
+
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "onKeyDown: " + keyCode);
@@ -866,7 +890,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         return super.onKeyDown(keyCode, event);
     }
 
-	public boolean onKeyUp(int keyCode, KeyEvent event) { 
+	public boolean onKeyUp(int keyCode, KeyEvent event) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "onKeyUp: " + keyCode);
 		mainUI.onKeyUp(keyCode, event);
@@ -876,11 +900,11 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public void zoomIn() {
 		mainUI.changeSeekbar(R.id.zoom_seekbar, -1);
 	}
-	
+
 	public void zoomOut() {
 		mainUI.changeSeekbar(R.id.zoom_seekbar, 1);
 	}
-	
+
 	public void changeExposure(int change) {
 		mainUI.changeSeekbar(R.id.exposure_seekbar, change);
 	}
@@ -892,7 +916,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public void changeFocusDistance(int change) {
 		mainUI.changeSeekbar(R.id.focus_seekbar, change);
 	}
-	
+
 	private final SensorEventListener accelerometerListener = new SensorEventListener() {
 		@Override
 		public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -903,7 +927,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			preview.onAccelerometerSensorChanged(event);
 		}
 	};
-	
+
 	private final SensorEventListener magneticListener = new SensorEventListener() {
 		@Override
 		public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -912,6 +936,28 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		@Override
 		public void onSensorChanged(SensorEvent event) {
 			preview.onMagneticSensorChanged(event);
+		}
+	};
+
+	//OpenCameraAR addition
+	private final SensorEventListener gravityListener = new SensorEventListener()
+	{
+		@Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			preview.onGravitySensorChange(event);
+		}
+	};
+
+	//OpenCameraAR addition
+	private final SensorEventListener rotationVecListener = new SensorEventListener()
+	{
+		@Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			preview.onRotationVecSensorChange(event);
 		}
 	};
 
@@ -943,6 +989,10 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 
         mSensorManager.registerListener(accelerometerListener, mSensorAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
         mSensorManager.registerListener(magneticListener, mSensorMagnetic, SensorManager.SENSOR_DELAY_NORMAL);
+		//OpenCameraAR addition
+        mSensorManager.registerListener(gravityListener, mSensorGravity, SensorManager.SENSOR_DELAY_GAME);
+		//OpenCameraAR addition
+		  mSensorManager.registerListener(rotationVecListener, mSensorRotationVec, SensorManager.SENSOR_DELAY_GAME);
         orientationEventListener.enable();
 
         registerReceiver(cameraReceiver, new IntentFilter("com.miband2.action.CAMERA"));
@@ -965,7 +1015,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "onResume: total time to resume: " + (System.currentTimeMillis() - debug_time));
 		}
     }
-	
+
 	@Override
 	public void onWindowFocusChanged(boolean hasFocus) {
 		if( MyDebug.LOG )
@@ -1020,13 +1070,13 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         preview.setCameraDisplayOrientation();
         super.onConfigurationChanged(newConfig);
     }
-    
+
     public void waitUntilImageQueueEmpty() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "waitUntilImageQueueEmpty");
         applicationInterface.getImageSaver().waitUntilDone();
     }
-    
+
     public void clickedTakePhoto(View view) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "clickedTakePhoto");
@@ -1085,21 +1135,21 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         	}
         }
     }
-    
+
     private void speechRecognizerStarted() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "speechRecognizerStarted");
 		mainUI.audioControlStarted();
 		speechRecognizerIsStarted = true;
     }
-    
+
     private void speechRecognizerStopped() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "speechRecognizerStopped");
 		mainUI.audioControlStopped();
 		speechRecognizerIsStarted = false;
     }
-    
+
     /* Returns the cameraId that the "Switch camera" button will switch to.
      */
     public int getNextCameraId() {
@@ -1161,7 +1211,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "clickedExposure");
 		mainUI.toggleExposureUI();
     }
-    
+
     private static double seekbarScaling(double frac) {
     	// For various seekbars, we want to use a non-linear scaling, so user has more control over smaller values
     	return (Math.pow(100.0, frac) - 1.0) / 99.0;
@@ -1182,7 +1232,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			new_value = manual_n;
 		seekBar.setProgress(new_value);
 	}
-    
+
     public static long exponentialScaling(double frac, double min, double max) {
 		/* We use S(frac) = A * e^(s * frac)
 		 * We want S(0) = min, S(1) = max
@@ -1218,7 +1268,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		exposureLockButton.setImageResource(preview.isExposureLocked() ? R.drawable.exposure_locked : R.drawable.exposure_unlocked);
 		preview.showToast(exposure_lock_toast, preview.isExposureLocked() ? R.string.exposure_locked : R.string.exposure_unlocked);
     }
-    
+
     public void clickedSettings(View view) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "clickedSettings");
@@ -1228,12 +1278,12 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     public boolean popupIsOpen() {
     	return mainUI.popupIsOpen();
     }
-	
+
     // for testing
     public View getUIButton(String key) {
     	return mainUI.getUIButton(key);
     }
-    
+
     public void closePopup() {
     	mainUI.closePopup();
     }
@@ -1348,7 +1398,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			return any;
 		}
 	}
-    
+
     public void openSettings() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "openSettings");
@@ -1357,7 +1407,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		preview.cancelRepeat(); // similarly cancel the auto-repeat mode!
 		preview.stopVideo(false); // important to stop video, as we'll be changing camera parameters when the settings window closes
 		stopAudioListeners();
-		
+
 		Bundle bundle = new Bundle();
 		bundle.putInt("cameraId", this.preview.getCameraId());
 		bundle.putInt("nCameras", preview.getCameraControllerManager().getNumberOfCameras());
@@ -1529,7 +1579,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			int [] video_fps = {15, 24, 25, 30, 60, 96, 100, 120};
 			bundle.putIntArray("video_fps", video_fps);
 		}
-		
+
 		putBundleExtra(bundle, "flash_values", this.preview.getSupportedFlashValues());
 		putBundleExtra(bundle, "focus_values", this.preview.getSupportedFocusValues());
 
@@ -1574,7 +1624,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     	/*String saved_focus_value = preview.updateFocusForVideo(); // n.b., may be null if focus mode not changed
 		if( MyDebug.LOG )
 			Log.d(TAG, "saved_focus_value: " + saved_focus_value);*/
-    	
+
 		if( MyDebug.LOG )
 			Log.d(TAG, "update folder history");
 		save_location_history.updateFolderHistory(getStorageUtils().getSaveLocation(), true); // this also updates the last icon for ghost image, if that pref has changed
@@ -1747,7 +1797,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     			return;
     		}
         }
-        super.onBackPressed();        
+        super.onBackPressed();
     }
 
 	public boolean usingKitKatImmersiveMode() {
@@ -1774,7 +1824,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 
 	private Handler immersive_timer_handler = null;
     private Runnable immersive_timer_runnable = null;
-    
+
     private void setImmersiveTimer() {
     	if( immersive_timer_handler != null && immersive_timer_runnable != null ) {
     		immersive_timer_handler.removeCallbacks(immersive_timer_runnable);
@@ -1821,7 +1871,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     	else
     		getWindow().getDecorView().setSystemUiVisibility(0);
     }
-    
+
     /** Sets the brightness level for normal operation (when camera preview is visible).
      *  If force_max is true, this always forces maximum brightness; otherwise this depends on user preference.
      */
@@ -1862,7 +1912,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     		ComponentName widgetComponent = new ComponentName(this, MyWidgetProvider.class);
     		int[] widgetIds = widgetManager.getAppWidgetIds(widgetComponent);
     		intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds);
-    		sendBroadcast(intent);    		
+    		sendBroadcast(intent);
     	}*/
 		SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
@@ -1893,11 +1943,11 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		}
 
 		setBrightnessForCamera(false);
-		
+
 		initImmersiveMode();
 		camera_in_background = false;
     }
-    
+
     /** Sets the window flags for when the settings window is open.
      */
     public void setWindowFlagsForSettings() {
@@ -1960,14 +2010,14 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		// note that 1ms usually fixes the problem, but not always; 10ms seems fine, have set 20ms
 		// just in case
 	}
-    
+
     public void showPreview(boolean show) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "showPreview: " + show);
 		final ViewGroup container = findViewById(R.id.hide_container);
 		container.setVisibility(show ? View.GONE : View.VISIBLE);
     }
-    
+
     /** Shows the default "blank" gallery icon, when we don't have a thumbnail available.
      */
 	private void updateGalleryIconToBlank() {
@@ -2343,7 +2393,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		}
 		save_location_history_saf.updateFolderHistory(save_folder, true);
     }
-    
+
     /** Listens for the response from the Storage Access Framework dialog to select a folder
      *  (as opened with openFolderChooserDialogSAF()).
      */
@@ -2762,7 +2812,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 
     	this.preview.takePicturePressed(photo_snapshot);
 	}
-    
+
     /** Lock the screen - this is Open Camera's own lock to guard against accidental presses,
      *  not the standard Android lock.
      */
@@ -2783,7 +2833,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		findViewById(R.id.locker).setOnTouchListener(null);
 		screen_is_locked = false;
     }
-    
+
     /** Whether the screen is locked (see lockScreen()).
      */
     public boolean isScreenLocked() {
@@ -2828,7 +2878,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			preview.showToast(screen_locked_toast, R.string.screen_is_locked);
 			return true;
         }
-    }	
+    }
 
 	@Override
 	protected void onSaveInstanceState(Bundle state) {
@@ -2842,7 +2892,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	    	applicationInterface.onSaveInstanceState(state);
 	    }
 	}
-	
+
 	public boolean supportsExposureButton() {
 		if( preview.getCameraController() == null )
 			return false;
@@ -2912,7 +2962,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 				else {
 					zoomControls.setVisibility(View.GONE);
 				}
-				
+
 				zoomSeekBar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
 				zoomSeekBar.setMax(preview.getMaxZoom());
 				zoomSeekBar.setProgress(preview.getMaxZoom()-preview.getCameraController().getZoom());
@@ -3171,7 +3221,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			});
 		}
 	}
-    
+
     public boolean supportsAutoStabilise() {
 		if( applicationInterface.isRawOnly() )
 			return false; // if not saving JPEGs, no point having auto-stabilise mode, as it won't affect the RAW images
@@ -3190,7 +3240,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		// also require at least Android 5, for the Renderscript support in HDRProcessor
 		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && large_heap_memory >= 128 && preview.supportsExpoBracketing() );
     }
-    
+
     public boolean supportsExpoBracketing() {
 		return preview.supportsExpoBracketing();
     }
@@ -3207,7 +3257,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && preview.usingCamera2API() && large_heap_memory >= 512 && preview.supportsBurst() && preview.supportsExposureTime() );
 		//return false; // currently blocked for release
 	}
-    
+
     private int maxExpoBracketingNImages() {
 		return preview.maxExpoBracketingNImages();
     }
@@ -3264,7 +3314,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     	}
 		return -1;
     }
-    
+
     public static String getDonateLink() {
     	return "https://play.google.com/store/apps/details?id=harman.mark.donation";
     }
@@ -3276,11 +3326,11 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     public Preview getPreview() {
     	return this.preview;
     }
-    
+
     public MainUI getMainUI() {
     	return this.mainUI;
     }
-    
+
     public MyApplicationInterface getApplicationInterface() {
     	return this.applicationInterface;
     }
@@ -3288,11 +3338,11 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public TextFormatter getTextFormatter() {
 		return this.textFormatter;
 	}
-    
+
     public LocationSupplier getLocationSupplier() {
     	return this.applicationInterface.getLocationSupplier();
     }
-    
+
     public StorageUtils getStorageUtils() {
     	return this.applicationInterface.getStorageUtils();
     }
@@ -3522,7 +3572,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         }
         mainUI.audioControlStopped();
 	}
-	
+
 	private void startAudioListener() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "startAudioListener");
@@ -3560,7 +3610,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			preview.showToast(null, R.string.audio_listener_failed);
 		}
 	}
-	
+
 	private void initSpeechRecognizer() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "initSpeechRecognizer");
@@ -3674,7 +3724,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			freeSpeechRecognizer();
 		}
 	}
-	
+
 	private void freeSpeechRecognizer() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "freeSpeechRecognizer");
@@ -3694,7 +3744,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			speechRecognizer = null;
 		}
 	}
-	
+
 	public boolean hasAudioControl() {
 		SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 		String audio_control = sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none");
@@ -3706,12 +3756,12 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		}
 		return false;
 	}
-	
+
 	/*void startAudioListeners() {
 		initAudioListener();
 		// no need to restart speech recognizer, as we didn't free it in stopAudioListeners(), and it's controlled by a user button
 	}*/
-	
+
 	public void stopAudioListeners() {
 		freeAudioListener(true);
         if( speechRecognizer != null ) {
@@ -3720,7 +3770,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         	speechRecognizerStopped();
         }
 	}
-	
+
 	private void initLocation() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "initLocation");
@@ -3730,7 +3780,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     		requestLocationPermission();
         }
 	}
-	
+
 	@SuppressWarnings("deprecation")
 	private void initSound() {
 		if( sound_pool == null ) {
@@ -3752,7 +3802,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			sound_ids = new SparseIntArray();
 		}
 	}
-	
+
 	private void releaseSound() {
         if( sound_pool != null ) {
     		if( MyDebug.LOG )
@@ -3762,7 +3812,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     		sound_ids = null;
         }
 	}
-	
+
 	// must be called before playSound (allowing enough time to load the sound)
 	private void loadSound(int resource_id) {
 		if( sound_pool != null ) {
@@ -3774,7 +3824,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			sound_ids.put(resource_id, sound_id);
 		}
 	}
-	
+
 	// must call loadSound first (allowing enough time to load the sound)
 	void playSound(int resource_id) {
 		if( sound_pool != null ) {
@@ -3790,7 +3840,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			}
 		}
 	}
-	
+
 	@SuppressWarnings("deprecation")
 	void speak(String text) {
         if( textToSpeech != null && textToSpeechSuccess ) {
@@ -3799,7 +3849,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	}
 
 	// Android 6+ permission handling:
-	
+
 	final private int MY_PERMISSIONS_REQUEST_CAMERA = 0;
 	final private int MY_PERMISSIONS_REQUEST_STORAGE = 1;
 	final private int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 2;
@@ -3862,7 +3912,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 				public void onDismiss(DialogInterface dialog) {
 					if( MyDebug.LOG )
 						Log.d(TAG, "requesting permission...");
-					ActivityCompat.requestPermissions(MainActivity.this, permissions_f, permission_code); 
+					ActivityCompat.requestPermissions(MainActivity.this, permissions_f, permission_code);
 				}
 			}).show();
 		}
@@ -4072,11 +4122,11 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public SaveLocationHistory getSaveLocationHistory() {
 		return this.save_location_history;
 	}
-	
+
 	public SaveLocationHistory getSaveLocationHistorySAF() {
 		return this.save_location_history_saf;
 	}
-	
+
     public void usedFolderPicker() {
 		if( applicationInterface.getStorageUtils().isUsingSAF() ) {
 			save_location_history_saf.updateFolderHistory(getStorageUtils().getSaveLocationSAF(), true);
@@ -4085,8 +4135,20 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			save_location_history.updateFolderHistory(getStorageUtils().getSaveLocation(), true);
 		}
     }
-    
+
 	public boolean hasThumbnailAnimation() {
 		return this.applicationInterface.hasThumbnailAnimation();
 	}
+
+	//OpenCameraAR addition
+	static public boolean floatEquals(float A, float B, float epsilon)
+   {
+      float diff = Math.abs(A - B);
+      A = Math.abs(A);
+      B = Math.abs(B);
+      // Find the largest
+      float largest = (B > A) ? B : A;
+      return (diff <= largest * epsilon);
+   }
+
 }

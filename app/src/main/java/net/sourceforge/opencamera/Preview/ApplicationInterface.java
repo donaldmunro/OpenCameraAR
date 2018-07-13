@@ -1,18 +1,17 @@
 package net.sourceforge.opencamera.Preview;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-
 import android.content.Context;
 import android.graphics.Canvas;
 import android.location.Location;
 import android.net.Uri;
 import android.util.Pair;
 import android.view.MotionEvent;
-
 import net.sourceforge.opencamera.CameraController.RawImage;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
 
 /** Provides communication between the Preview and the rest of the application
  *  - so in theory one can drop the Preview/ (and CameraController/) classes
@@ -31,7 +30,7 @@ public interface ApplicationInterface {
 	int VIDEOMETHOD_FILE = 0; // video will be saved to a file
 	int VIDEOMETHOD_SAF = 1; // video will be saved using Android 5's Storage Access Framework
 	int VIDEOMETHOD_URI = 2; // video will be written to the supplied Uri
-	
+
 	// methods that request information
 	Context getContext(); // get the application context
 	boolean useCamera2(); // should Android 5's Camera 2 API be used?
@@ -110,6 +109,8 @@ public interface ApplicationInterface {
 	boolean useCamera2FastBurst(); // whether to enable Camera2's captureBurst() for faster taking of expo-bracketing photos (generally should be true, but some devices have problems with captureBurst())
 	boolean usePhotoVideoRecording(); // whether to enable support for taking photos when recording video (if not supported, this won't be called)
 
+	boolean getARSensorsPref(); //OpenCameraAR addition
+
 	// for testing purposes:
 	boolean isTestAlwaysFocus(); // if true, pretend autofocus always successful
 
@@ -165,12 +166,13 @@ public interface ApplicationInterface {
 	void setExposureTimePref(long exposure_time);
 	void clearExposureTimePref();
 	void setFocusDistancePref(float focus_distance);
-	
+
 	// callbacks
 	void onDrawPreview(Canvas canvas);
-	boolean onPictureTaken(byte [] data, Date current_date);
-	boolean onBurstPictureTaken(List<byte []> images, Date current_date);
-	boolean onRawPictureTaken(RawImage raw_image, Date current_date);
+	//OpenCameraAR addition
+	boolean onPictureTaken(byte [] data, Date current_date, Preview.IARParameters arParameters);
+	boolean onBurstPictureTaken(List<byte []> images, Date current_date, Preview.IARParameters arParameters);
+	boolean onRawPictureTaken(RawImage raw_image, Date current_date, Preview.IARParameters arParameters);
 	void onCaptureStarted(); // called immediately before we start capturing the picture
 	void onPictureCompleted(); // called after all picture callbacks have been called and returned
 	void onContinuousFocusMove(boolean start); // called when focusing starts/stop in continuous picture mode (in photo mode only)

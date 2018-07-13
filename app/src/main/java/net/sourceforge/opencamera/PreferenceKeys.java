@@ -4,7 +4,7 @@ package net.sourceforge.opencamera;
  */
 public class PreferenceKeys {
     // must be static, to safely call from other Activities
-	
+
 	// arguably the static methods here that don't receive an argument could just be static final strings? Though we may want to change some of them to be cameraId-specific in future
 
 	/** If this preference is set, no longer show the intro dialog.
@@ -40,11 +40,11 @@ public class PreferenceKeys {
     public static String getResolutionPreferenceKey(int cameraId) {
     	return "camera_resolution_" + cameraId;
     }
-    
+
     public static String getVideoQualityPreferenceKey(int cameraId, boolean high_speed) {
     	return "video_quality_" + cameraId + (high_speed ? "_highspeed" : "");
     }
-    
+
 	public static final String IsVideoPreferenceKey = "is_video";
 
 	public static final String ExposurePreferenceKey = "preference_exposure";
@@ -152,7 +152,7 @@ public class PreferenceKeys {
     public static String getMaxBrightnessPreferenceKey() {
     	return "preference_max_brightness";
     }
-    
+
     public static String getUsingSAFPreferenceKey() {
     	return "preference_using_saf";
     }
@@ -172,7 +172,7 @@ public class PreferenceKeys {
     public static String getSaveVideoPrefixPreferenceKey() {
     	return "preference_save_video_prefix";
     }
-    
+
     public static String getSaveZuluTimePreferenceKey() {
     	return "preference_save_zulu_time";
     }
@@ -220,11 +220,11 @@ public class PreferenceKeys {
     public static String getVideoStabilizationPreferenceKey() {
     	return "preference_video_stabilization";
     }
-    
+
     public static String getForceVideo4KPreferenceKey() {
     	return "preference_force_video_4k";
     }
-    
+
     public static String getVideoBitratePreferenceKey() {
     	return "preference_video_bitrate";
     }
@@ -234,7 +234,7 @@ public class PreferenceKeys {
 		// backwards compatibility for people upgrading
     	return "preference_video_fps" + ((cameraId==0) ? "" : ("_"+cameraId));
     }
-    
+
     public static String getVideoCaptureRatePreferenceKey(int cameraId) {
     	return "preference_capture_rate_" + cameraId;
     }
@@ -244,15 +244,15 @@ public class PreferenceKeys {
     public static String getVideoMaxDurationPreferenceKey() {
     	return "preference_video_max_duration";
     }
-    
+
     public static String getVideoRestartPreferenceKey() {
     	return "preference_video_restart";
     }
-    
+
     public static String getVideoMaxFileSizePreferenceKey() {
     	return "preference_video_max_filesize";
     }
-    
+
     public static String getVideoRestartMaxFileSizePreferenceKey() {
     	return "preference_video_restart_max_filesize";
     }
@@ -268,7 +268,7 @@ public class PreferenceKeys {
     public static String getLockVideoPreferenceKey() {
     	return "preference_lock_video";
     }
-    
+
     public static String getRecordAudioPreferenceKey() {
     	return "preference_record_audio";
     }
@@ -294,30 +294,32 @@ public class PreferenceKeys {
     public static String getTimerPreferenceKey() {
     	return "preference_timer";
     }
-    
+
     public static String getTimerBeepPreferenceKey() {
     	return "preference_timer_beep";
     }
-    
+
     public static String getTimerSpeakPreferenceKey() {
     	return "preference_timer_speak";
     }
-    
+
     public static String getRepeatModePreferenceKey() {
     	// note for historical reasons the preference refers to burst; the feature was renamed to
 		// "repeat" in v1.43, but we still need to use the old string to avoid changing user settings
 		// when people upgrade
     	return "preference_burst_mode";
     }
-    
+
     public static String getRepeatIntervalPreferenceKey() {
     	// see note about "repeat" vs "burst" under getRepeatModePreferenceKey()
     	return "preference_burst_interval";
     }
-    
+
     public static String getShutterSoundPreferenceKey() {
     	return "preference_shutter_sound";
     }
-    
+
+	public static String getARSensorsPreferenceKey() { return "preference_ar_store_sensors"; }  //OpenCameraAR addition
+
 	public static final String ImmersiveModePreferenceKey = "preference_immersive_mode";
 }
