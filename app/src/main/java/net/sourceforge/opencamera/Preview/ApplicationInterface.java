@@ -19,7 +19,7 @@ import java.util.List;
  *  ApplicationInterface.
  */
 public interface ApplicationInterface {
-	class NoFreeStorageException extends Exception {
+   class NoFreeStorageException extends Exception {
 		private static final long serialVersionUID = -2021932609486148748L;
 	}
 	class VideoMaxFileSize {
@@ -110,6 +110,7 @@ public interface ApplicationInterface {
 	boolean usePhotoVideoRecording(); // whether to enable support for taking photos when recording video (if not supported, this won't be called)
 
 	boolean getARSensorsPref(); //OpenCameraAR addition
+	boolean isForceInfiniteFocus(); //OpenCameraAR addition
 
 	// for testing purposes:
 	boolean isTestAlwaysFocus(); // if true, pretend autofocus always successful

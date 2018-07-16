@@ -1203,6 +1203,14 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return sharedPreferences.getBoolean(PreferenceKeys.getARSensorsPreferenceKey(), false);
 	}
 
+	//OpenCameraAR addition
+	@Override
+	public boolean isForceInfiniteFocus()
+	{
+		SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+		return sharedPreferences.getBoolean(PreferenceKeys.getARInfiniteFocusPreferenceKey(), true);
+	}
+
 	@Override
     public boolean isTestAlwaysFocus() {
 		if( MyDebug.LOG ) {
@@ -2330,11 +2338,23 @@ public class MyApplicationInterface implements ApplicationInterface {
 			float[] gravity = arParameters.gravity();
 			if (gravity != null)
          {
-				arWriteMatYAML(pw, "deviceGravity", gravity);
+				pw.println("# Reported gravity vector not compensated for device rotation");
+         	arWriteMatYAML(pw, "rawGravity", gravity);
 				float[] raw = Arrays.copyOf(gravity, 4), cooked = new float[4];
 				Matrix.multiplyMV(cooked, 0, IR, 0, raw, 0);
-            arWriteMatYAML(pw, "correctedGravity", cooked);
+				pw.println("# Gravity vector with compensation for device rotation");
+            arWriteMatYAML(pw, "gravity", cooked);
          }
+			float[] acceleration = arParameters.accelerometer();
+			if (acceleration != null)
+			{
+				pw.println("# Reported accelerometer vector not compensated for device rotation");
+				arWriteMatYAML(pw, "rawAcceleration", acceleration);
+				float[] raw = Arrays.copyOf(acceleration, 4), cooked = new float[4];
+				Matrix.multiplyMV(cooked, 0, IR, 0, raw, 0);
+				pw.println("# Accelerometer vector with compensation for device rotation");
+				arWriteMatYAML(pw, "acceleration", cooked);
+			}
 			float[] rotationVec = arParameters.rotationVec();
 			if (rotationVec != null)
 			{
@@ -2342,38 +2362,14 @@ public class MyApplicationInterface implements ApplicationInterface {
 				if (gravity != null)
 				{
 					float R[] = new float[16], RM[] = new float[16], g[] = Arrays.copyOf(gravity, 4);
-					int axisX, axisY;
-					switch (main_activity.getWindowManager().getDefaultDisplay().getRotation()) {
-						case Surface.ROTATION_90:
-							axisX = SensorManager.AXIS_Y;
-							axisY = SensorManager.AXIS_MINUS_X;
-							break;
-
-						case Surface.ROTATION_180:
-							axisX = SensorManager.AXIS_MINUS_X;
-							axisY = SensorManager.AXIS_MINUS_Y;
-							break;
-
-						case Surface.ROTATION_270:
-							axisX = SensorManager.AXIS_MINUS_Y;
-							axisY = SensorManager.AXIS_X;
-							break;
-
-						default:
-							axisX = SensorManager.AXIS_X;
-							axisY = SensorManager.AXIS_Y;
-							break;
-					}
-
 					float[] event = {0, 0, 0};
 					SensorManager.getRotationMatrixFromVector(R , event);
-					SensorManager.remapCoordinateSystem(R, axisX, axisY, RM);
+					SensorManager.remapCoordinateSystem(R, androidXAxis, androidYAxis, RM);
 					float[] gravityVec = new float[4];
-					// Compensate for landscape eg swap x and y when (using trivial event 0,0,0 ie identity matrix with fixes by remap)
                Matrix.multiplyMV(gravityVec, 0, RM, 0, g, 0);
 
 					SensorManager.getRotationMatrixFromVector(R , rotationVec);
-					SensorManager.remapCoordinateSystem(R, axisX, axisY, RM);
+					SensorManager.remapCoordinateSystem(R, androidXAxis, androidYAxis, RM);
 					float[] Z = new float[] { 0, 0, 1, 0 };
 					float[] rotatedZ = new float[4];
 					Matrix.multiplyMV(rotatedZ, 0, RM, 0, Z, 0);

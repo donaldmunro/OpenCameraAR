@@ -252,11 +252,12 @@
                 android:defaultValue="true"
                 />
 
+			 <!--  //OpenCameraAR addition (changed auto-focus default to false) -->
 	       <SwitchPreference
                 android:key="preference_startup_focus"
                 android:title="@string/preference_startup_focus"
                 android:summary="@string/preference_startup_focus_summary"
-                android:defaultValue="true"
+                android:defaultValue="false"
                 />
 
 			<Preference
@@ -896,7 +897,12 @@
 					 android:key="preference_ar_store_sensors"
 					 android:title="@string/preference_ar_sensors"
 					 android:summary="@string/preference_ar_sensors_summary"
-					 android:icon="@drawable/ar"
+					 android:defaultValue="true"
+					 />
+			 <CheckBoxPreference
+					 android:key="preference_ar_infinite_focus"
+					 android:title="@string/preference_ar_infinite_focus"
+					 android:summary="@string/preference_ar_infinite_focus_summary"
 					 android:defaultValue="true"
 					 />
 		 </PreferenceScreen>

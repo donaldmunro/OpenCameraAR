@@ -3187,6 +3187,10 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		block_startup_toast = false;
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraSetup: total time for cameraSetup: " + (System.currentTimeMillis() - debug_time));
+
+		 //OpenCameraAR addition
+		 if ( sharedPreferences.getBoolean(PreferenceKeys.getARInfiniteFocusPreferenceKey(), true))
+		 	preview.setFocusDistance(0);
     }
 
     public void setManualWBSeekbar() {

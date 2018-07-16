@@ -321,5 +321,7 @@ public class PreferenceKeys {
 
 	public static String getARSensorsPreferenceKey() { return "preference_ar_store_sensors"; }  //OpenCameraAR addition
 
+	public static String getARInfiniteFocusPreferenceKey() { return "preference_ar_infinite_focus"; }  //OpenCameraAR addition
+
 	public static final String ImmersiveModePreferenceKey = "preference_immersive_mode";
 }

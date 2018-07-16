@@ -581,4 +581,6 @@
     <string name="preference_screen_ar_settings">AR settings…</string>
     <string name="preference_ar_sensors">Store Orientation Sensors (AR)</string>
     <string name="preference_ar_sensors_summary">Store orientation sensor data in a separate file for AR use</string>
+   <string name="preference_ar_infinite_focus">Force Focus to Infinity</string>
+    <string name="preference_ar_infinite_focus_summary">Forces focus mode to infinite (0) focus to preserve focal length.</string>
 </resources>

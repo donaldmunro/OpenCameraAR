@@ -298,6 +298,15 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 		synchronized (lock_rotation_vec) { return Arrays.copyOf(rotation_vector, 5); }
 	}
 
+	//OpenCameraAR addition
+	final private Object lock_accelerometer = new Object();
+	private final float [] accelerometer = new float[3];
+	synchronized public float[] getLastAccelerometer()
+	//-------------------------------------------------
+	{
+		synchronized (lock_accelerometer) { return Arrays.copyOf(accelerometer, 3); }
+	}
+
 	private final DecimalFormat decimal_format_1dp = new DecimalFormat("#.#");
 	private final DecimalFormat decimal_format_2dp = new DecimalFormat("#.##");
 
@@ -4586,6 +4595,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 		}
 
 		if( timer_delay == 0 ) {
+			this.setFocusDistance(0); //OpenCameraAR
 			takePicture(false, photo_snapshot);
 		}
 		else {
@@ -4791,7 +4801,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         	return;
 		}
 
-		takePhoto(false);
+		//OpenCameraAR addition
+		takePhoto(applicationInterface.isForceInfiniteFocus());
 		if( MyDebug.LOG )
 			Log.d(TAG, "takePicture exit");
 	}
@@ -5249,7 +5260,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 				}
 			}
 		}
-		else if( camera_controller.focusIsContinuous() ) {
+		else if( (camera_controller.focusIsContinuous()) && (! applicationInterface.isForceInfiniteFocus()) ) {
 			if( MyDebug.LOG )
 				Log.d(TAG, "call autofocus for continuous focus mode");
 			// we call via autoFocus(), to avoid risk of taking photo while the continuous focus is focusing - risk of blurred photo, also sometimes get bug in such situations where we end of repeatedly focusing
@@ -5342,17 +5353,20 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 	{
 		float[] gravity();
 		float[] rotationVec();
+		float[] accelerometer();
 	} ;
 
 	//OpenCameraAR addition
 	class ARParameters implements IARParameters
 	{
-		float[] gravity, rotation;
-		public ARParameters(float[] g, float[] r) { gravity = g; rotation = r; }
+		float[] gravity, rotation, acceleration;
+		public ARParameters(float[] g, float[] r, float[] a) { gravity = g;rotation = r; acceleration = a; }
 
 		@Override public float[] gravity() { return gravity; }
 
 		@Override public float[] rotationVec() { return rotation; }
+
+		@Override public float[] accelerometer() { return acceleration; }
 	}
 
 	/** Take photo, assumes any autofocus has already been taken care of, and that applicationInterface.cameraInOperation(true, false) has
@@ -5406,7 +5420,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
 			//OpenCameraAR addition
 			private boolean store_ar_sensors = applicationInterface.getARSensorsPref();
-			private float[] gravity, rotation_vec;
+			private float[] gravity, rotation_vec, accelerometer;
 
 			public void onStarted() {
 				if( MyDebug.LOG )
@@ -5418,6 +5432,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 				{
 					gravity = getLastGravity();
 					rotation_vec = getLastRotationVector();
+					accelerometer = getLastAccelerometer();
 				}
 			}
 
@@ -5498,7 +5513,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     	    	// n.b., this is automatically run in a different thread
 				initDate();
 				//OpenCameraAR addition
-				if( !applicationInterface.onPictureTaken(data, current_date, new ARParameters(gravity, rotation_vec)) ) {
+				if( !applicationInterface.onPictureTaken(data, current_date, new ARParameters(gravity, rotation_vec, accelerometer)) ) {
 					if( MyDebug.LOG )
 						Log.e(TAG, "applicationInterface.onPictureTaken failed");
 					success = false;
@@ -5513,7 +5528,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 					Log.d(TAG, "onRawPictureTaken");
 				initDate();
 				//OpenCameraAR addition
-				if( !applicationInterface.onRawPictureTaken(raw_image, current_date, new ARParameters(gravity, rotation_vec)) ) {
+				if( !applicationInterface.onRawPictureTaken(raw_image, current_date, new ARParameters(gravity, rotation_vec,
+																																  accelerometer)) ) {
 					if( MyDebug.LOG )
 						Log.e(TAG, "applicationInterface.onRawPictureTaken failed");
 				}
@@ -5527,7 +5543,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
 				success = true;
 				//OpenCameraAR addition
-				if( !applicationInterface.onBurstPictureTaken(images, current_date, new ARParameters(gravity, rotation_vec)) ) {
+				if( !applicationInterface.onBurstPictureTaken(images, current_date, new ARParameters(gravity, rotation_vec,
+																																 accelerometer)) ) {
 					if( MyDebug.LOG )
 						Log.e(TAG, "applicationInterface.onBurstPictureTaken failed");
 					success = false;
@@ -5885,7 +5902,11 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     public void onAccelerometerSensorChanged(SensorEvent event) {
 		/*if( MyDebug.LOG )
     		Log.d(TAG, "onAccelerometerSensorChanged: " + event.values[0] + ", " + event.values[1] + ", " + event.values[2]);*/
-
+		 //OpenCameraAR addition
+		 synchronized (lock_accelerometer)
+		 {
+		    System.arraycopy(event.values, 0, this.accelerometer, 0, 3); //OpenCameraAR addition
+		 }
     	this.has_gravity = true;
     	synchronized (lock_gravity)  //OpenCameraAR addition
 		{
